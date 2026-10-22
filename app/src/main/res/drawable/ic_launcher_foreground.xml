@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Cadenas stylisé, centré dans la zone de sécurité de l'icône adaptative (66 dp). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFE8F1F5"
+        android:strokeWidth="5"
+        android:pathData="M42,50 L42,42 A12,12 0 0,1 66,42 L66,50" />
+    <path
+        android:fillColor="#FFE8F1F5"
+        android:pathData="M36,50 L72,50 A4,4 0 0,1 76,54 L76,74 A4,4 0 0,1 72,78 L36,78 A4,4 0 0,1 32,74 L32,54 A4,4 0 0,1 36,50 Z" />
+    <path
+        android:fillColor="#FF1B3A4B"
+        android:pathData="M54,58 A4,4 0 0,1 56,65.5 L56,71 L52,71 L52,65.5 A4,4 0 0,1 54,58 Z" />
+</vector>
