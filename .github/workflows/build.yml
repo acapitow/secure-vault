@@ -60,6 +60,19 @@ jobs:
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: ./gradlew --no-daemon assembleDebug assembleRelease
 
+      # Garde-fou : l'empreinte attendue intégrée à l'APK (BuildConfig.EXPECTED_SIGNER)
+      # doit être celle du certificat qui le signe réellement, sinon l'application
+      # se croirait re-signée et bloquerait l'ouverture du coffre.
+      - name: Vérifier l'empreinte de signature intégrée
+        if: env.SIGNING_KEYSTORE_PATH != ''
+        run: |
+          apksigner=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
+          apk=$(ls app/build/outputs/apk/release/*.apk)
+          actual=$("$apksigner" verify --print-certs "$apk" | grep -m1 'certificate SHA-256 digest' | awk '{print $NF}')
+          echo "Certificat de l'APK : $actual"
+          test -n "$actual"
+          unzip -p "$apk" 'classes*.dex' | grep -a -q "$actual" || { echo "::error::Empreinte absente de l'APK"; exit 1; }
+
       - name: Empreintes SHA-256 des APK
         run: |
           {

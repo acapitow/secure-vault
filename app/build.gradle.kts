@@ -1,3 +1,6 @@
+import java.security.KeyStore
+import java.security.MessageDigest
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -10,12 +13,12 @@ val ciKeystorePath = providers.environmentVariable("SIGNING_KEYSTORE_PATH").orNu
 // Empreinte SHA-256 du certificat de la CI, vérifiée au lancement (IntegrityChecker).
 // Vide pour un build sans clé stable : la vérification est alors désactivée.
 val expectedSigner: String = ciKeystorePath?.let { path ->
-    val keyStore = java.security.KeyStore.getInstance("PKCS12")
+    val keyStore = KeyStore.getInstance("PKCS12")
     file(path).inputStream().use {
         keyStore.load(it, providers.environmentVariable("SIGNING_STORE_PASSWORD").get().toCharArray())
     }
     val certificate = keyStore.getCertificate(providers.environmentVariable("SIGNING_KEY_ALIAS").get())
-    java.security.MessageDigest.getInstance("SHA-256").digest(certificate.encoded).joinToString("") { "%02x".format(it) }
+    MessageDigest.getInstance("SHA-256").digest(certificate.encoded).joinToString("") { "%02x".format(it) }
 }.orEmpty()
 
 android {
