@@ -13,6 +13,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.fragment.app.FragmentActivity
+import io.github.acapitow.vault.VaultApp
 
 /**
  * Activity unique. Hérite de FragmentActivity car BiometricPrompt l'exige.
@@ -33,5 +34,11 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    /** Toute interaction relance le minuteur de verrouillage pour inactivité. */
+    override fun onUserInteraction() {
+        super.onUserInteraction()
+        (application as VaultApp).session.onUserInteraction()
     }
 }

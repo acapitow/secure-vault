@@ -17,18 +17,21 @@ import java.util.Base64
  * Format du fichier coffre (JSON, version 1) :
  *
  *     {
- *       "header": { "format": 1, "kdf": {…}, "salt": b64, "passwordSlot": b64 },
+ *       "header": { "format": 1, "kdf": {…}, "salt": b64, "passwordSlot": b64, "biometricSlot": b64 | null },
  *       "payload": b64
  *     }
  *
  * Hiérarchie de clés :
  *
  *   - la clé du coffre (DEK, 256 bits aléatoires) chiffre le contenu ;
- *   - passwordSlot = AES-GCM(clé appareil, AES-GCM(Argon2id(mot de passe), DEK)).
+ *   - passwordSlot = AES-GCM(clé appareil, AES-GCM(Argon2id(mot de passe), DEK)) ;
+ *   - biometricSlot (facultatif) = AES-GCM(clé biométrique, DEK), où la clé
+ *     biométrique est une clé Keystore utilisable seulement après une
+ *     authentification biométrique forte (voir BiometricKey).
  *
  * La clé appareil vit dans l'Android Keystore et ne quitte jamais le matériel :
  * un fichier copié hors du téléphone ne permet pas de tester des mots de passe
- * hors ligne. L'en-tête (paramètres KDF, sel) sert d'AAD aux deux couches :
+ * hors ligne. L'en-tête (paramètres KDF, sel) sert d'AAD à chaque slot :
  * toute modification est détectée avant même la dérivation Argon2id.
  *
  * Le contenu déchiffré (titres, identifiants, URL) reste en clair en mémoire ;
@@ -39,13 +42,14 @@ import java.util.Base64
 internal const val FORMAT = 1
 
 @Serializable
-internal class VaultHeader(
+internal data class VaultHeader(
     val format: Int,
     val kdf: KdfParams,
     @Serializable(with = Base64Serializer::class) val salt: ByteArray,
     @Serializable(with = Base64Serializer::class) val passwordSlot: ByteArray,
+    @Serializable(with = Base64Serializer::class) val biometricSlot: ByteArray? = null,
 ) {
-    /** Données associées des deux couches du slot : tout l'en-tête sauf le slot lui-même. */
+    /** Données associées d'une couche de slot : tout l'en-tête sauf les slots eux-mêmes. */
     fun aad(layer: String): ByteArray =
         "secure-vault/v$format/$layer;m=${kdf.memoryKiB};t=${kdf.iterations};p=${kdf.parallelism};salt=${b64(salt)}"
             .toByteArray()
@@ -83,3 +87,11 @@ class WrongPasswordException : GeneralSecurityException("mot de passe incorrect"
 
 /** Fichier altéré, tronqué, d'un format inconnu, ou chiffré par la clé d'un autre appareil. */
 class CorruptedVaultException(cause: Throwable? = null) : GeneralSecurityException("coffre illisible", cause)
+
+/**
+ * La clé biométrique a été invalidée par le système (nouvelle empreinte ou
+ * nouveau visage enregistré) : le déverrouillage biométrique a été désactivé
+ * et le mot de passe maître est requis.
+ */
+class BiometricInvalidatedException(cause: Throwable? = null) :
+    GeneralSecurityException("biométrie modifiée, mot de passe requis", cause)

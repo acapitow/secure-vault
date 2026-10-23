@@ -21,7 +21,7 @@ class DecryptionException(cause: Throwable? = null) : GeneralSecurityException("
  *
  * Le nonce est généré par le fournisseur lors de `init` (et non par l'appelant).
  * C'est le seul mode accepté par les clés Android Keystore, ce qui permet
- * d'utiliser cette même classe avec une clé matérielle à l'étape 3.
+ * d'utiliser cette même classe avec une clé matérielle (Android Keystore).
  */
 object AesGcm {
 
@@ -44,9 +44,25 @@ object AesGcm {
      *   (ex. identifiant de l'entrée) : empêchent de déplacer un bloc chiffré
      *   d'un contexte à un autre.
      */
-    fun encrypt(key: SecretKey, plaintext: ByteArray, aad: ByteArray = EMPTY): ByteArray {
-        val cipher = Cipher.getInstance(TRANSFORMATION)
-        cipher.init(Cipher.ENCRYPT_MODE, key)
+    fun encrypt(key: SecretKey, plaintext: ByteArray, aad: ByteArray = EMPTY): ByteArray =
+        encrypt(encryptor(key), plaintext, aad)
+
+    /** @throws DecryptionException si le bloc est altéré, tronqué, ou si la clé / l'AAD ne correspondent pas. */
+    fun decrypt(key: SecretKey, blob: ByteArray, aad: ByteArray = EMPTY): ByteArray =
+        decrypt(decryptor(key, blob), blob, aad)
+
+    /*
+     * Variantes en deux temps, pour les clés Keystore liées à la biométrie :
+     * le Cipher initialisé est passé à BiometricPrompt (CryptoObject), qui ne
+     * l'autorise qu'après authentification ; on termine ensuite l'opération.
+     * Les exceptions d'initialisation (ex. KeyPermanentlyInvalidatedException)
+     * ne sont pas masquées.
+     */
+
+    fun encryptor(key: SecretKey): Cipher =
+        Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key) }
+
+    fun encrypt(cipher: Cipher, plaintext: ByteArray, aad: ByteArray = EMPTY): ByteArray {
         val nonce = cipher.iv
         check(nonce != null && nonce.size == NONCE_SIZE) { "nonce GCM inattendu" }
         cipher.updateAAD(byteArrayOf(VERSION))
@@ -60,13 +76,26 @@ object AesGcm {
         }
     }
 
-    /** @throws DecryptionException si le bloc est altéré, tronqué, ou si la clé / l'AAD ne correspondent pas. */
-    fun decrypt(key: SecretKey, blob: ByteArray, aad: ByteArray = EMPTY): ByteArray {
+    /** @throws DecryptionException si le bloc est mal formé. */
+    fun decryptor(key: SecretKey, blob: ByteArray): Cipher {
         if (blob.size < OVERHEAD || blob[0] != VERSION) throw DecryptionException()
-        val nonce = blob.copyOfRange(1, 1 + NONCE_SIZE)
-        val sealed = blob.copyOfRange(1 + NONCE_SIZE, blob.size)
-        return open(key, nonce, sealed, byteArrayOf(VERSION) + aad)
+        return Cipher.getInstance(TRANSFORMATION).apply {
+            init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_SIZE * 8, blob, 1, NONCE_SIZE))
+        }
     }
+
+    /** @param cipher issu de [decryptor] pour ce même [blob]. */
+    fun decrypt(cipher: Cipher, blob: ByteArray, aad: ByteArray = EMPTY): ByteArray =
+        try {
+            if (blob.size < OVERHEAD || blob[0] != VERSION) throw DecryptionException()
+            cipher.updateAAD(byteArrayOf(VERSION))
+            cipher.updateAAD(aad)
+            cipher.doFinal(blob, 1 + NONCE_SIZE, blob.size - 1 - NONCE_SIZE)
+        } catch (e: DecryptionException) {
+            throw e
+        } catch (e: GeneralSecurityException) {
+            throw DecryptionException(e)
+        }
 
     /** GCM brut : vérifie le tag puis déchiffre. Exposé pour les vecteurs de test NIST. */
     internal fun open(key: SecretKey, nonce: ByteArray, sealed: ByteArray, aad: ByteArray): ByteArray =

@@ -82,6 +82,15 @@ class AesGcmTest {
         assertFalse(blob.toHex().contains(plaintext.copyOf(8).toHex()))
     }
 
+    @Test
+    fun `API en deux temps compatible avec l'API simple`() {
+        val blob = AesGcm.encrypt(AesGcm.encryptor(key), plaintext, aad)
+        assertArrayEquals(plaintext, AesGcm.decrypt(key, blob, aad))
+        assertArrayEquals(plaintext, AesGcm.decrypt(AesGcm.decryptor(key, blob), blob, aad))
+        assertRejected("AAD") { AesGcm.decrypt(AesGcm.decryptor(key, blob), blob, "autre".toByteArray()) }
+        assertRejected("bloc tronqué") { AesGcm.decryptor(key, blob.copyOf(AesGcm.OVERHEAD - 1)) }
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun `cle de 128 bits refusee`() {
         AesGcm.key(ByteArray(16))
