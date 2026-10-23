@@ -81,6 +81,8 @@ fun EntryEditScreen(vm: VaultViewModel, id: String?) {
             totpInput.clearText()
         } catch (e: IllegalArgumentException) {
             totpError = "QR code ou clé invalide (${e.message})"
+        } catch (e: RuntimeException) {
+            totpError = "Erreur inattendue (${e.javaClass.name}: ${e.message})"
         } finally {
             Secrets.wipe(input)
         }

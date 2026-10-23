@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,6 +55,7 @@ fun QrScanner(onResult: (String) -> Unit, onCancel: () -> Unit) {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
     }
     var denied by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         granted = ok
         denied = !ok
@@ -68,8 +70,13 @@ fun QrScanner(onResult: (String) -> Unit, onCancel: () -> Unit) {
             )
         },
     ) { padding ->
+        val failure = error
         when {
-            granted -> CameraPreview(Modifier.padding(padding).fillMaxSize(), onResult)
+            failure != null -> Column(Modifier.padding(padding).padding(16.dp)) {
+                Text("La caméra n'a pas pu démarrer. Tu peux saisir la clé secrète à la main.")
+                Text("Détail : $failure", style = MaterialTheme.typography.bodySmall)
+            }
+            granted -> CameraPreview(Modifier.padding(padding).fillMaxSize(), onResult) { error = it }
             denied -> Column(Modifier.padding(padding).padding(16.dp)) {
                 Text("Accès à la caméra refusé. Tu peux saisir la clé secrète à la main.")
             }
@@ -77,11 +84,18 @@ fun QrScanner(onResult: (String) -> Unit, onCancel: () -> Unit) {
     }
 }
 
+/** Type et message d'une erreur (jamais de secret : uniquement caméra / décodage d'image). */
+private fun describe(e: Throwable): String {
+    val root = generateSequence(e) { it.cause }.last()
+    return "${e.javaClass.name}: ${e.message}" + if (root !== e) " ← ${root.javaClass.name}: ${root.message}" else ""
+}
+
 @Composable
-private fun CameraPreview(modifier: Modifier, onResult: (String) -> Unit) {
+private fun CameraPreview(modifier: Modifier, onResult: (String) -> Unit, onError: (String) -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnResult by rememberUpdatedState(onResult)
+    val currentOnError by rememberUpdatedState(onError)
     val previewView = remember { PreviewView(context) }
 
     DisposableEffect(lifecycleOwner) {
@@ -91,28 +105,41 @@ private fun CameraPreview(modifier: Modifier, onResult: (String) -> Unit) {
         val done = AtomicBoolean(false)
         var disposed = false
 
+        // Toute erreur (initialisation de CameraX, caméra absente ou occupée, image
+        // inattendue) devient un message au lieu de faire planter l'application.
+        fun fail(e: Throwable) {
+            if (done.compareAndSet(false, true)) mainExecutor.execute { if (!disposed) currentOnError(describe(e)) }
+        }
+
         providerFuture.addListener({
             if (disposed) return@addListener
-            val provider = providerFuture.get()
-            val preview = Preview.Builder().build()
-            preview.setSurfaceProvider(previewView.surfaceProvider)
-            val analysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
-            analysis.setAnalyzer(
-                executor,
-                QrAnalyzer { text ->
-                    // Un seul résultat, remis sur le thread principal.
-                    if (done.compareAndSet(false, true)) mainExecutor.execute { currentOnResult(text) }
-                },
-            )
-            provider.unbindAll()
-            provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+            try {
+                val provider = providerFuture.get()
+                val preview = Preview.Builder().build()
+                preview.setSurfaceProvider(previewView.surfaceProvider)
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                analysis.setAnalyzer(
+                    executor,
+                    QrAnalyzer(
+                        onQr = { text ->
+                            // Un seul résultat, remis sur le thread principal.
+                            if (done.compareAndSet(false, true)) mainExecutor.execute { if (!disposed) currentOnResult(text) }
+                        },
+                        onError = ::fail,
+                    ),
+                )
+                provider.unbindAll()
+                provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, analysis)
+            } catch (e: Exception) {
+                fail(e)
+            }
         }, mainExecutor)
 
         onDispose {
             disposed = true
-            if (providerFuture.isDone) providerFuture.get().unbindAll()
+            if (providerFuture.isDone) runCatching { providerFuture.get().unbindAll() }
             executor.shutdown()
         }
     }
@@ -121,23 +148,35 @@ private fun CameraPreview(modifier: Modifier, onResult: (String) -> Unit) {
 }
 
 /** Décode la luminance (plan Y) de chaque image avec ZXing. */
-private class QrAnalyzer(private val onQr: (String) -> Unit) : ImageAnalysis.Analyzer {
+private class QrAnalyzer(
+    private val onQr: (String) -> Unit,
+    private val onError: (Throwable) -> Unit,
+) : ImageAnalysis.Analyzer {
 
     private val reader = QRCodeReader()
 
     override fun analyze(image: ImageProxy) {
-        image.use {
-            val plane = it.planes[0]
-            val buffer = plane.buffer
-            val luminance = ByteArray(buffer.remaining()).also(buffer::get)
-            val source = PlanarYUVLuminanceSource(luminance, plane.rowStride, it.height, 0, 0, it.width, it.height, false)
-            try {
-                onQr(reader.decode(BinaryBitmap(HybridBinarizer(source))).text)
-            } catch (_: ReaderException) {
-                // Pas de QR code lisible dans cette image : on attend la suivante.
-            } finally {
-                reader.reset()
+        try {
+            val plane = image.planes[0]
+            val buffer = plane.buffer.duplicate().apply { rewind() }
+            val width = image.width
+            val height = image.height
+            // Copie ligne par ligne : le tampon peut avoir un pas (rowStride) supérieur
+            // à la largeur, et sa dernière ligne être plus courte.
+            val luminance = ByteArray(width * height)
+            for (row in 0 until height) {
+                buffer.position(row * plane.rowStride)
+                buffer.get(luminance, row * width, width)
             }
+            val source = PlanarYUVLuminanceSource(luminance, width, height, 0, 0, width, height, false)
+            onQr(reader.decode(BinaryBitmap(HybridBinarizer(source))).text)
+        } catch (_: ReaderException) {
+            // Pas de QR code lisible dans cette image : on attend la suivante.
+        } catch (e: Exception) {
+            onError(e)
+        } finally {
+            reader.reset()
+            image.close()
         }
     }
 }
