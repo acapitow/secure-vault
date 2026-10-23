@@ -37,6 +37,10 @@ jobs:
         with:
           cache-provider: basic
 
+      # Avant la clé de signature : les tests n'en ont pas besoin.
+      - name: Tests unitaires
+        run: ./gradlew --no-daemon testDebugUnitTest
+
       - name: Clé de signature (si configurée)
         env:
           SIGNING_KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
@@ -48,9 +52,6 @@ jobs:
           else
             echo "::warning::Secret SIGNING_KEYSTORE_B64 absent : clé debug éphémère, les mises à jour exigeront une désinstallation."
           fi
-
-      - name: Tests unitaires
-        run: ./gradlew --no-daemon testDebugUnitTest
 
       - name: Build APK debug + release
         env:
