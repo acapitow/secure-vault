@@ -29,8 +29,8 @@ android {
         applicationId = "io.github.acapitow.vault"
         minSdk = 28
         targetSdk = 37
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.2.1"
         buildConfigField("String", "EXPECTED_SIGNER", "\"$expectedSigner\"")
     }
 

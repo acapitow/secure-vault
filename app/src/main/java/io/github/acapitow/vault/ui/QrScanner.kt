@@ -4,6 +4,16 @@ package io.github.acapitow.vault.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedButton
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -23,7 +33,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,25 +60,20 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Composable
 fun QrScanner(onResult: (String) -> Unit, onCancel: () -> Unit) {
     val context = LocalContext.current
-    var granted by remember {
-        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
-    }
-    var denied by remember { mutableStateOf(false) }
+    val activity = LocalActivity.current
+    fun hasCamera() = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+
+    var granted by remember { mutableStateOf(hasCamera()) }
+    var permanentlyDenied by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         granted = ok
-        denied = !ok
+        // Refus sans possibilité de redemander (« Ne plus demander », ou deux refus) :
+        // seule la page des réglages de l'application peut encore accorder l'accès.
+        permanentlyDenied = !ok && activity?.shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) == false
     }
-    var askFailed by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        if (!granted) {
-            try {
-                launcher.launch(Manifest.permission.CAMERA)
-            } catch (_: IllegalStateException) {
-                askFailed = true // repli : bouton « Autoriser la caméra »
-            }
-        }
-    }
+    // Au retour des réglages système, l'autorisation a pu changer.
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { granted = hasCamera() }
 
     Scaffold(
         topBar = {
@@ -86,13 +90,51 @@ fun QrScanner(onResult: (String) -> Unit, onCancel: () -> Unit) {
                 Text("Détail : $failure", style = MaterialTheme.typography.bodySmall)
             }
             granted -> CameraPreview(Modifier.padding(padding).fillMaxSize(), onResult) { error = it }
-            denied -> Column(Modifier.padding(padding).padding(16.dp)) {
-                Text("Accès à la caméra refusé. Tu peux saisir la clé secrète à la main.")
-            }
-            askFailed -> Column(Modifier.padding(padding).padding(16.dp)) {
-                TextButton(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text("Autoriser la caméra") }
-            }
+            else -> CameraPermission(
+                modifier = Modifier.padding(padding),
+                permanentlyDenied = permanentlyDenied,
+                onRequest = { launcher.launch(Manifest.permission.CAMERA) },
+                onOpenSettings = {
+                    context.startActivity(
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+                    )
+                },
+                onManualEntry = onCancel,
+            )
         }
+    }
+}
+
+/**
+ * Explication avant la demande système : l'utilisateur sait pourquoi la
+ * caméra est demandée et ce qu'il advient des images (MASVS-PRIVACY).
+ */
+@Composable
+private fun CameraPermission(
+    modifier: Modifier,
+    permanentlyDenied: Boolean,
+    onRequest: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onManualEntry: () -> Unit,
+) {
+    Column(modifier.padding(24.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("Autoriser la caméra", style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "La caméra sert uniquement à lire le QR code affiché par le site lors de l'activation de la " +
+                "double authentification. Les images sont analysées sur le téléphone : elles ne sont ni " +
+                "enregistrées ni envoyées (l'application n'a pas accès à Internet).",
+        )
+        if (permanentlyDenied) {
+            Text(
+                "L'accès à la caméra a été refusé. Pour l'autoriser, ouvre les réglages de l'application, " +
+                    "puis Autorisations → Caméra.",
+                color = MaterialTheme.colorScheme.error,
+            )
+            Button(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) { Text("Ouvrir les réglages") }
+        } else {
+            Button(onClick = onRequest, modifier = Modifier.fillMaxWidth()) { Text("Autoriser") }
+        }
+        OutlinedButton(onClick = onManualEntry, modifier = Modifier.fillMaxWidth()) { Text("Saisir la clé à la main") }
     }
 }
 
