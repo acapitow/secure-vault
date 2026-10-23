@@ -54,6 +54,19 @@ object Secrets {
             if (buffer.hasArray()) buffer.array().fill(0)
         }
     }
+
+    /** Inverse de [utf8] : décode sans passer par une String. L'appelant doit effacer le résultat. */
+    fun chars(bytes: ByteArray): CharArray {
+        val decoder = Charsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+        val buffer: CharBuffer = decoder.decode(ByteBuffer.wrap(bytes))
+        return try {
+            CharArray(buffer.remaining()).also(buffer::get)
+        } finally {
+            if (buffer.hasArray()) buffer.array().fill('\u0000')
+        }
+    }
 }
 
 /** Exécute [block] puis efface le tableau, même en cas d'exception. */

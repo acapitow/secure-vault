@@ -14,6 +14,17 @@ class SecretsTest {
         assertEquals("f09f9491", Secrets.utf8("🔑".toCharArray()).toHex())
     }
 
+    @Test
+    fun `chars inverse de utf8`() {
+        val text = "aé€🔑".toCharArray()
+        assertArrayEquals(text, Secrets.chars(Secrets.utf8(text)))
+    }
+
+    @Test(expected = java.nio.charset.CharacterCodingException::class)
+    fun `octets UTF-8 invalides refuses`() {
+        Secrets.chars(byteArrayOf(0xff.toByte()))
+    }
+
     @Test(expected = java.nio.charset.CharacterCodingException::class)
     fun `surrogate isole refuse plutot que remplace`() {
         Secrets.utf8(charArrayOf('a', '\uD83D'))

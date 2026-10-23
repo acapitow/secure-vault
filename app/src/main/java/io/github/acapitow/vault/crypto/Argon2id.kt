@@ -1,5 +1,6 @@
 package io.github.acapitow.vault.crypto
 
+import kotlinx.serialization.Serializable
 import org.bouncycastle.crypto.generators.Argon2BytesGenerator
 import org.bouncycastle.crypto.params.Argon2Parameters
 
@@ -11,6 +12,7 @@ import org.bouncycastle.crypto.params.Argon2Parameters
  * modifierait le fichier ne doit pas pouvoir imposer des paramètres faibles
  * (attaque par dégradation).
  */
+@Serializable
 data class KdfParams(
     val memoryKiB: Int = 65_536, // 64 Mio
     val iterations: Int = 3,

@@ -1,6 +1,7 @@
 package io.github.acapitow.vault.totp
 
 import io.github.acapitow.vault.crypto.Secrets
+import kotlinx.serialization.Serializable
 import java.nio.ByteBuffer
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -12,6 +13,7 @@ enum class OtpAlgorithm(val macName: String) {
 }
 
 /** Paramètres d'un compte TOTP. Les valeurs par défaut sont celles de Google Authenticator. */
+@Serializable
 data class TotpParams(
     val algorithm: OtpAlgorithm = OtpAlgorithm.SHA1,
     val digits: Int = 6,
