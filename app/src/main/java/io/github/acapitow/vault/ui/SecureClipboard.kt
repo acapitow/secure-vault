@@ -11,7 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Presse-papiers pour les secrets (MASVS-PLATFORM-1 / MASVS-STORAGE-2).
+ * Presse-papiers pour les secrets (MASVS-STORAGE-2).
  *
  * - marqué sensible : Android 13+ masque l'aperçu, et les claviers qui
  *   respectent ce drapeau ne le mémorisent pas ;

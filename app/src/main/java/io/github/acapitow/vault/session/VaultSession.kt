@@ -38,7 +38,7 @@ sealed interface UnlockResult {
 }
 
 /**
- * Délais de verrouillage automatique (MASVS-AUTH-1 / MASVS-STORAGE-2).
+ * Délais de verrouillage automatique (MASVS-AUTH-2 / MASVS-STORAGE-2).
  *
  * @param backgroundMs délai après le passage en arrière-plan, pour tolérer un
  *   aller-retour rapide (copier un code dans une autre application).

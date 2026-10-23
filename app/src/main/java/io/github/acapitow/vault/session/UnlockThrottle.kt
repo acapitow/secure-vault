@@ -7,7 +7,7 @@ interface AttemptStore {
 }
 
 /**
- * Délai croissant après des mots de passe incorrects (MASVS-AUTH-1).
+ * Délai croissant après des mots de passe incorrects (MASVS-AUTH-2).
  *
  * Les [FREE_ATTEMPTS] premiers échecs sont sans pénalité (fautes de frappe),
  * puis le délai double à chaque échec : 30 s, 1 min, 2 min… jusqu'à 1 h.
