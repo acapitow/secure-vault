@@ -108,3 +108,8 @@ app/src/main/java/io/github/acapitow/vault/
 4. Publication des APK, du `mapping.txt` R8 et des rapports de tests
 
 Actions épinglées par SHA de commit, `GITHUB_TOKEN` en lecture seule, wrapper Gradle validé.
+
+## Licence
+
+© 2026 acapitow — **tous droits réservés**. Code publié pour consultation uniquement :
+aucune réutilisation, copie ou redistribution sans autorisation écrite. Voir [LICENSE](LICENSE).
