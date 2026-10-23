@@ -3,6 +3,7 @@ package io.github.acapitow.vault.session
 import io.github.acapitow.vault.crypto.AesGcm
 import io.github.acapitow.vault.crypto.KdfParams
 import io.github.acapitow.vault.crypto.Secrets
+import io.github.acapitow.vault.security.Threat
 import io.github.acapitow.vault.vault.EntryFields
 import io.github.acapitow.vault.vault.VaultRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,7 +33,10 @@ class VaultSessionTest {
     /** Horloge monotone réglable ; simule aussi le temps passé processus gelé. */
     private var frozenOffset = 0L
 
-    private fun TestScope.session(store: AttemptStore = MemoryAttemptStore()): VaultSession {
+    private fun TestScope.session(
+        store: AttemptStore = MemoryAttemptStore(),
+        threats: Set<Threat> = emptySet(),
+    ): VaultSession {
         val repository = VaultRepository(File(tmp.root, "vault.json"), { deviceKey })
         return VaultSession(
             repository,
@@ -41,6 +45,7 @@ class VaultSessionTest {
             elapsed = { testScheduler.currentTime + frozenOffset },
             policy = policy,
             worker = UnconfinedTestDispatcher(testScheduler),
+            blockingThreats = { threats },
         )
     }
 
@@ -118,5 +123,15 @@ class VaultSessionTest {
         frozenOffset = 10 * 60_000
         session.onForeground()
         assertTrue(!session.isUnlocked())
+    }
+
+    @Test
+    fun `environnement compromis, coffre jamais ouvert`() = runTest {
+        session().apply { create(password, fast); lock() }
+        val store = MemoryAttemptStore()
+        val session = session(store, threats = setOf(Threat.HOOKING))
+        assertEquals(UnlockResult.Compromised(setOf(Threat.HOOKING)), session.unlock(password))
+        assertEquals(SessionState.Locked, session.state.value)
+        assertEquals("pas compté comme un échec de mot de passe", 0, store.failures)
     }
 }

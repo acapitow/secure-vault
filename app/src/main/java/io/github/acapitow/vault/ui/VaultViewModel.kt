@@ -8,6 +8,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.acapitow.vault.VaultApp
 import io.github.acapitow.vault.crypto.Secrets
+import io.github.acapitow.vault.security.Threat
 import io.github.acapitow.vault.session.SessionState
 import io.github.acapitow.vault.session.UnlockResult
 import io.github.acapitow.vault.session.VaultSession
@@ -19,7 +20,9 @@ import io.github.acapitow.vault.vault.Vault
 import io.github.acapitow.vault.vault.VaultEntry
 import io.github.acapitow.vault.vault.WrongPasswordException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.security.GeneralSecurityException
 import javax.crypto.Cipher
@@ -47,7 +50,16 @@ class TotpDisplay(val code: String, val remaining: Int, val period: Int)
  */
 class VaultViewModel(app: Application) : AndroidViewModel(app) {
 
-    val session: VaultSession = (app as VaultApp).session
+    private val vaultApp = app as VaultApp
+    val session: VaultSession = vaultApp.session
+
+    /** Menaces détectées sur l'appareil (avertissements ou blocage). */
+    var threats by mutableStateOf<Set<Threat>>(emptySet())
+        private set
+
+    /** Ouverture interdite : menace bloquante en build release. */
+    val blocked: Boolean
+        get() = vaultApp.enforceIntegrity && threats.any { it.blocking }
 
     var screen by mutableStateOf<Screen>(Screen.Entries)
         private set
@@ -61,6 +73,7 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
         get() = (session.state.value as? SessionState.Unlocked)?.vault
 
     init {
+        checkEnvironment()
         viewModelScope.launch {
             session.state.collect { state ->
                 if (state is SessionState.Unlocked) {
@@ -70,6 +83,12 @@ class VaultViewModel(app: Application) : AndroidViewModel(app) {
                     screen = Screen.Entries
                 }
             }
+        }
+    }
+
+    fun checkEnvironment() {
+        viewModelScope.launch {
+            threats = withContext(Dispatchers.Default) { vaultApp.integrity.check() }
         }
     }
 

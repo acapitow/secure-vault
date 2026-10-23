@@ -24,6 +24,10 @@ fun AppRoot(vm: VaultViewModel = viewModel()) {
         }
     }
 
+    if (vm.blocked && state !is SessionState.Unlocked) {
+        CompromisedScreen(vm)
+        return
+    }
     when (state) {
         SessionState.NoVault -> SetupScreen(vm)
         SessionState.Locked -> UnlockScreen(vm)

@@ -1,6 +1,7 @@
 package io.github.acapitow.vault.session
 
 import io.github.acapitow.vault.crypto.KdfParams
+import io.github.acapitow.vault.security.Threat
 import io.github.acapitow.vault.vault.CorruptedVaultException
 import io.github.acapitow.vault.vault.Vault
 import io.github.acapitow.vault.vault.VaultRepository
@@ -31,6 +32,9 @@ sealed interface UnlockResult {
 
     data class LockedOut(val remainingMs: Long) : UnlockResult
     data object Corrupted : UnlockResult
+
+    /** Environnement hostile (débogueur, instrumentation, APK modifié) : ouverture refusée. */
+    data class Compromised(val threats: Set<Threat>) : UnlockResult
 }
 
 /**
@@ -57,6 +61,9 @@ data class AutoLockPolicy(
  * et on vérifie l'écoulé au retour, sur une horloge monotone ([elapsed],
  * SystemClock.elapsedRealtime sous Android) que l'utilisateur ne peut pas
  * reculer.
+ *
+ * [blockingThreats] est consulté avant chaque ouverture : un environnement
+ * hostile n'obtient jamais la clé du coffre (MASVS-RESILIENCE).
  */
 class VaultSession(
     private val repository: VaultRepository,
@@ -65,6 +72,7 @@ class VaultSession(
     private val elapsed: () -> Long,
     private val policy: AutoLockPolicy = AutoLockPolicy(),
     private val worker: CoroutineDispatcher = Dispatchers.Default,
+    private val blockingThreats: () -> Set<Threat> = { emptySet() },
 ) {
 
     private val _state = MutableStateFlow(if (repository.exists()) SessionState.Locked else SessionState.NoVault)
@@ -81,6 +89,7 @@ class VaultSession(
     /** Crée le coffre et l'ouvre. Le mot de passe n'est pas modifié ; l'appelant l'efface. */
     suspend fun create(password: CharArray, kdf: KdfParams = KdfParams()) {
         check(state.value == SessionState.NoVault) { "un coffre existe déjà" }
+        check(withContext(worker) { blockingThreats() }.isEmpty()) { "environnement compromis" }
         opened(withContext(worker) { repository.create(password, kdf) })
     }
 
@@ -88,6 +97,7 @@ class VaultSession(
     suspend fun unlock(password: CharArray): UnlockResult {
         check(state.value == SessionState.Locked) { "coffre absent ou déjà ouvert" }
         throttle.remainingMs().let { if (it > 0) return UnlockResult.LockedOut(it) }
+        withContext(worker) { blockingThreats() }.let { if (it.isNotEmpty()) return UnlockResult.Compromised(it) }
         return try {
             opened(withContext(worker) { repository.unlock(password) })
             throttle.reset()
@@ -105,6 +115,7 @@ class VaultSession(
     /** [cipher] : celui de [biometricUnlockCipher], débloqué par BiometricPrompt. */
     suspend fun unlockWithBiometric(cipher: Cipher): UnlockResult {
         check(state.value == SessionState.Locked) { "coffre absent ou déjà ouvert" }
+        withContext(worker) { blockingThreats() }.let { if (it.isNotEmpty()) return UnlockResult.Compromised(it) }
         return try {
             opened(withContext(worker) { repository.unlockWithBiometric(cipher) })
             throttle.reset()

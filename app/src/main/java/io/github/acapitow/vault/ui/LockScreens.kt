@@ -14,6 +14,8 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -31,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import io.github.acapitow.vault.security.Threat
 import io.github.acapitow.vault.session.UnlockResult
 import io.github.acapitow.vault.vault.BiometricInvalidatedException
 import kotlinx.coroutines.delay
@@ -54,6 +57,36 @@ private fun CenteredColumn(content: @Composable () -> Unit) {
     ) { content() }
 }
 
+/** Menaces non bloquantes : l'utilisateur est informé, mais garde l'accès à ses données. */
+@Composable
+private fun ThreatWarnings(threats: Set<Threat>) {
+    if (threats.isEmpty()) return
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Environnement à risque", style = MaterialTheme.typography.titleSmall)
+            threats.forEach { Text("• ${it.label}", style = MaterialTheme.typography.bodySmall) }
+        }
+    }
+}
+
+/** Menace bloquante en release : pas de champ de mot de passe, la clé du coffre n'est jamais dérivée. */
+@Composable
+fun CompromisedScreen(vm: VaultViewModel) {
+    CenteredColumn {
+        Text("Ouverture bloquée", style = MaterialTheme.typography.headlineMedium)
+        Text(
+            "Secure Vault refuse de s'ouvrir dans cet environnement. Tes données restent chiffrées " +
+                "et intactes : elles seront de nouveau accessibles une fois la cause supprimée.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        ThreatWarnings(vm.threats.filterTo(mutableSetOf()) { it.blocking })
+        OutlinedButton(onClick = vm::checkEnvironment, modifier = Modifier.fillMaxWidth()) { Text("Vérifier à nouveau") }
+    }
+}
+
 /** Vide les champs secrets quand l'écran disparaît. */
 @Composable
 private fun ClearOnDispose(vararg states: TextFieldState) {
@@ -72,6 +105,7 @@ fun SetupScreen(vm: VaultViewModel) {
 
     CenteredColumn {
         Text("Créer le coffre", style = MaterialTheme.typography.headlineMedium)
+        ThreatWarnings(vm.threats)
         Text(
             "Choisis un mot de passe maître d'au moins $MIN_MASTER_PASSWORD caractères, par exemple " +
                 "une phrase de plusieurs mots. Il ne peut pas être récupéré : sans lui, le coffre est perdu. " +
@@ -135,6 +169,7 @@ fun UnlockScreen(vm: VaultViewModel) {
             }
             is UnlockResult.LockedOut -> lockoutUntil = SystemClock.elapsedRealtime() + result.remainingMs
             UnlockResult.Corrupted -> error = "Coffre illisible : fichier altéré ou clé de l'appareil indisponible."
+            is UnlockResult.Compromised -> vm.checkEnvironment()
         }
     }
 
@@ -160,6 +195,7 @@ fun UnlockScreen(vm: VaultViewModel) {
 
     CenteredColumn {
         Text("Secure Vault", style = MaterialTheme.typography.headlineMedium)
+        ThreatWarnings(vm.threats)
         PasswordField(password, "Mot de passe maître", isError = error != null, supportingText = error)
         when {
             vm.busy -> CircularProgressIndicator()

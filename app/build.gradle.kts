@@ -7,6 +7,17 @@ plugins {
 // Clé de signature fournie par la CI (secrets GitHub). Jamais versionnée.
 val ciKeystorePath = providers.environmentVariable("SIGNING_KEYSTORE_PATH").orNull
 
+// Empreinte SHA-256 du certificat de la CI, vérifiée au lancement (IntegrityChecker).
+// Vide pour un build sans clé stable : la vérification est alors désactivée.
+val expectedSigner: String = ciKeystorePath?.let { path ->
+    val keyStore = java.security.KeyStore.getInstance("PKCS12")
+    file(path).inputStream().use {
+        keyStore.load(it, providers.environmentVariable("SIGNING_STORE_PASSWORD").get().toCharArray())
+    }
+    val certificate = keyStore.getCertificate(providers.environmentVariable("SIGNING_KEY_ALIAS").get())
+    java.security.MessageDigest.getInstance("SHA-256").digest(certificate.encoded).joinToString("") { "%02x".format(it) }
+}.orEmpty()
+
 android {
     namespace = "io.github.acapitow.vault"
     compileSdk = 37
@@ -15,8 +26,9 @@ android {
         applicationId = "io.github.acapitow.vault"
         minSdk = 28
         targetSdk = 37
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
+        buildConfigField("String", "EXPECTED_SIGNER", "\"$expectedSigner\"")
     }
 
     signingConfigs {
