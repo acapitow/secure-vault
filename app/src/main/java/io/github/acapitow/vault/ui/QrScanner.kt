@@ -60,7 +60,16 @@ fun QrScanner(onResult: (String) -> Unit, onCancel: () -> Unit) {
         granted = ok
         denied = !ok
     }
-    LaunchedEffect(Unit) { if (!granted) launcher.launch(Manifest.permission.CAMERA) }
+    var askFailed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!granted) {
+            try {
+                launcher.launch(Manifest.permission.CAMERA)
+            } catch (_: IllegalStateException) {
+                askFailed = true // repli : bouton « Autoriser la caméra »
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -79,6 +88,9 @@ fun QrScanner(onResult: (String) -> Unit, onCancel: () -> Unit) {
             granted -> CameraPreview(Modifier.padding(padding).fillMaxSize(), onResult) { error = it }
             denied -> Column(Modifier.padding(padding).padding(16.dp)) {
                 Text("Accès à la caméra refusé. Tu peux saisir la clé secrète à la main.")
+            }
+            askFailed -> Column(Modifier.padding(padding).padding(16.dp)) {
+                TextButton(onClick = { launcher.launch(Manifest.permission.CAMERA) }) { Text("Autoriser la caméra") }
             }
         }
     }

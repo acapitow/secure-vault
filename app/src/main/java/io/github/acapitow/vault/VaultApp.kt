@@ -34,6 +34,7 @@ class VaultApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        if (BuildConfig.DEBUG) CrashLog.install(this)
         integrity = IntegrityChecker(AndroidProbe(this), BuildConfig.EXPECTED_SIGNER)
         // noBackupFilesDir : exclu de toute sauvegarde, en plus d'allowBackup=false.
         val repository = VaultRepository(File(noBackupFilesDir, "vault.json"), DeviceKey::getOrCreate, BiometricKey)
