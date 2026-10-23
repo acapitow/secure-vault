@@ -17,5 +17,4 @@ Dans le périmètre : la branche `main`, le format du coffre, la cryptographie, 
 les fuites de données vers d'autres applications ou le système.
 
 Hors périmètre : les limites documentées dans le [modèle de menace](docs/threat-model.md)
-(copies en mémoire, contournement des détections par un attaquant root), et la branche `vulnerable`,
-volontairement vulnérable à des fins pédagogiques.
+(copies en mémoire, contournement des détections par un attaquant root).
