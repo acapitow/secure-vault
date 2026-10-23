@@ -122,7 +122,7 @@ class VaultRepository(
         } catch (e: InvalidKeyException) {
             // KeyPermanentlyInvalidatedException : nouvelle empreinte enregistrée.
             dropBiometricSlot(vaultFile)
-            biometricKeys?.delete()
+            biometricKeys.delete()
             throw BiometricInvalidatedException(e)
         } catch (e: DecryptionException) {
             throw CorruptedVaultException(e)
