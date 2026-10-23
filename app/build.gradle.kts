@@ -86,9 +86,15 @@ dependencies {
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.core)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.bouncycastle.prov)
+    // Lecture des QR codes TOTP : CameraX + ZXing core (Java pur, sans réseau ni Play Services).
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+    implementation(libs.zxing.core)
     debugImplementation(libs.compose.ui.tooling)
 
     testImplementation(libs.junit)

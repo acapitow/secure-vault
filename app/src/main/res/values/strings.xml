@@ -1,7 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Secure Vault</string>
-    <string name="biometric_unlock_title">Déverrouiller Secure Vault</string>
-    <string name="biometric_enroll_title">Activer le déverrouillage biométrique</string>
-    <string name="biometric_use_password">Utiliser le mot de passe</string>
 </resources>
