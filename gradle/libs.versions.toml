@@ -1,5 +1,5 @@
 # Versions vérifiées le 2026-10-22 sur Google Maven / Maven Central
-# (CameraX et ZXing le 2026-10-23).
+# (CameraX, ZXing et Fragment le 2026-10-23).
 [versions]
 agp = "9.4.1"
 kotlin = "2.4.21"
@@ -8,6 +8,9 @@ activityCompose = "1.13.0"
 lifecycle = "2.11.0"
 coreKtx = "1.19.1"
 biometric = "1.1.0"
+# biometric 1.1.0 tire fragment 1.2.5, dont FragmentActivity refuse les codes de
+# requête > 16 bits de l'ActivityResultRegistry (plantage à la demande de permission).
+fragment = "1.9.1"
 kotlinxSerialization = "1.12.0"
 coroutines = "1.11.0"
 bouncyCastle = "1.86"
@@ -23,6 +26,7 @@ androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-process = { module = "androidx.lifecycle:lifecycle-process", version.ref = "lifecycle" }
 androidx-biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
+androidx-fragment = { module = "androidx.fragment:fragment", version.ref = "fragment" }
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }

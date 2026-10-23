@@ -29,8 +29,8 @@ android {
         applicationId = "io.github.acapitow.vault"
         minSdk = 28
         targetSdk = 37
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.2.2"
         buildConfigField("String", "EXPECTED_SIGNER", "\"$expectedSigner\"")
     }
 
@@ -97,6 +97,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment) // force une version récente (voir libs.versions.toml)
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
